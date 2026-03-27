@@ -408,6 +408,11 @@ body {
     <input type="range" id="aheadSlider" min="30" max="180" value="60" step="15">
     <span class="value" id="aheadValue">1h</span>
   </div>
+  <div class="control-row">
+    <label>Max distance</label>
+    <input type="range" id="distSlider" min="0" max="2000" value="0" step="100" disabled>
+    <span class="value" id="distValue">Any</span>
+  </div>
 </div>
 
 <div class="filter-bar">
@@ -521,6 +526,7 @@ let isLive = true;
 let refOffsetMin = 0;   // minutes from "now" (0 = live)
 let aheadMin = 60;
 let minFilter = false;
+let maxDistYards = 0;   // 0 = off (show all)
 let venueVisible = {};  // venue -> bool
 let venueOpen = false;
 let expandedIds = new Set();  // track which cards are expanded across renders
@@ -559,11 +565,13 @@ function initGeo() {
       userLng = pos.coords.longitude;
       document.getElementById("geoStatus").textContent =
         "GPS active (" + pos.coords.accuracy.toFixed(0) + "m accuracy)";
+      distSlider.disabled = false;
       render();
     },
     err => {
       document.getElementById("geoStatus").textContent =
         "GPS unavailable -- distances hidden";
+      distSlider.disabled = true;
     },
     { enableHighAccuracy: true, maximumAge: 30000 }
   );
@@ -698,9 +706,15 @@ function render() {
   document.getElementById("liveBadge").style.display = isLive ? "" : "none";
 
   // Filter events
-  const visible = EVENTS.filter(e =>
-    e._start && e._end && venueVisible[e.venue] !== false
-  );
+  const visible = EVENTS.filter(e => {
+    if (!e._start || !e._end) return false;
+    if (venueVisible[e.venue] === false) return false;
+    if (maxDistYards > 0) {
+      const d = distTo(e);
+      if (d != null && d * 1.09361 > maxDistYards) return false;
+    }
+    return true;
+  });
 
   // Now playing
   let nowEvs = visible.filter(e => e._start <= ref && e._end > ref);
@@ -783,6 +797,17 @@ aheadSlider.addEventListener("input", () => {
   aheadMin = parseInt(aheadSlider.value);
   aheadValue.textContent = formatMins(aheadMin);
   try { localStorage.setItem("be_now_ahead", aheadMin); } catch (e) {}
+  render();
+});
+
+// Distance slider
+const distSlider = document.getElementById("distSlider");
+const distValue = document.getElementById("distValue");
+distSlider.addEventListener("input", () => {
+  maxDistYards = parseInt(distSlider.value);
+  distValue.textContent = maxDistYards === 0 ? "Any" :
+    maxDistYards < 1760 ? maxDistYards + " yd" :
+    (maxDistYards / 1760).toFixed(1) + " mi";
   render();
 });
 
@@ -879,5 +904,8 @@ setInterval(() => {
 initGeo();
 render();
 </script>
+<div style="text-align:center;padding:1rem;font-size:0.65rem;color:var(--text-dim)">
+  <img src="https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fmikegilchrist.github.io%2Fbigears-now&count_bg=%23e94560&title_bg=%230f3460&icon=&title=visits&edge_flat=true" alt="hit counter">
+</div>
 </body>
 </html>
