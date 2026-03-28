@@ -418,6 +418,7 @@ body {
 <div class="filter-bar">
   <button class="filter-btn active" id="minFilter" data-active="false">30+ min left</button>
   <button class="venue-toggle" id="venueToggle">Venues</button>
+  <button class="venue-toggle" id="fontSizeBtn" style="margin-left:auto">A</button>
 </div>
 
 <div class="venue-panel" id="venuePanel">
@@ -865,6 +866,30 @@ document.getElementById("venueNone").addEventListener("click", () => {
 });
 
 buildVenueGrid();
+
+// Font size cycling: normal -> large -> larger -> normal
+const FONT_SIZES = [
+  { label: "A",  size: "16px" },
+  { label: "A+", size: "20px" },
+  { label: "A++", size: "24px" },
+];
+let fontSizeIdx = 0;
+try {
+  const saved = parseInt(localStorage.getItem("be_now_font") || "0");
+  if (saved >= 0 && saved < FONT_SIZES.length) fontSizeIdx = saved;
+} catch(e) {}
+
+function applyFontSize() {
+  document.body.style.fontSize = FONT_SIZES[fontSizeIdx].size;
+  document.getElementById("fontSizeBtn").textContent = FONT_SIZES[fontSizeIdx].label;
+}
+applyFontSize();
+
+document.getElementById("fontSizeBtn").addEventListener("click", () => {
+  fontSizeIdx = (fontSizeIdx + 1) % FONT_SIZES.length;
+  try { localStorage.setItem("be_now_font", fontSizeIdx); } catch(e) {}
+  applyFontSize();
+});
 
 // Card expand/collapse via event delegation on both list containers
 function handleCardClick(e) {
