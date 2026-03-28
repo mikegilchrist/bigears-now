@@ -899,7 +899,7 @@ try {
 } catch(e) {}
 
 function applyFontSize() {
-  document.body.style.fontSize = FONT_SIZES[fontSizeIdx].size;
+  document.documentElement.style.fontSize = FONT_SIZES[fontSizeIdx].size;
   document.getElementById("fontSizeBtn").textContent = FONT_SIZES[fontSizeIdx].label;
 }
 applyFontSize();
