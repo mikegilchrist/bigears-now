@@ -410,13 +410,14 @@ body {
   </div>
   <div class="control-row">
     <label>Max distance</label>
-    <input type="range" id="distSlider" min="0" max="2000" value="0" step="100" disabled>
+    <input type="range" id="distSlider" min="0" max="2000" value="2000" step="100" disabled>
     <span class="value" id="distValue">Any</span>
   </div>
 </div>
 
 <div class="filter-bar">
   <button class="filter-btn active" id="minFilter" data-active="false">30+ min left</button>
+  <button class="filter-btn" id="sortDistBtn">Sort: distance</button>
   <button class="venue-toggle" id="venueToggle">Venues</button>
   <button class="venue-toggle" id="fontSizeBtn" style="margin-left:auto">A</button>
 </div>
@@ -528,6 +529,7 @@ let refOffsetMin = 0;   // minutes from "now" (0 = live)
 let aheadMin = 60;
 let minFilter = false;
 let maxDistYards = 0;   // 0 = off (show all)
+let sortByDist = false;
 let venueVisible = {};  // venue -> bool
 let venueOpen = false;
 let expandedIds = new Set();  // track which cards are expanded across renders
@@ -566,13 +568,13 @@ function initGeo() {
       userLng = pos.coords.longitude;
       document.getElementById("geoStatus").textContent =
         "GPS active (" + pos.coords.accuracy.toFixed(0) + "m accuracy)";
-      distSlider.disabled = false;
+      document.getElementById("distSlider").disabled = false;
       render();
     },
     err => {
       document.getElementById("geoStatus").textContent =
         "GPS unavailable -- distances hidden";
-      distSlider.disabled = true;
+      document.getElementById("distSlider").disabled = true;
     },
     { enableHighAccuracy: true, maximumAge: 30000 }
   );
@@ -722,8 +724,12 @@ function render() {
   if (minFilter) {
     nowEvs = nowEvs.filter(e => (e._end - ref) / 60000 >= 30);
   }
-  // Sort: by tier (ascending = best first), then distance
+  // Sort now playing
   nowEvs.sort((a, b) => {
+    if (sortByDist) {
+      const da = distTo(a), db = distTo(b);
+      if (da != null && db != null && da !== db) return da - db;
+    }
     const ta = a.tier || 99, tb = b.tier || 99;
     if (ta !== tb) return ta - tb;
     const da = distTo(a), db = distTo(b);
@@ -739,12 +745,16 @@ function render() {
   // Coming up
   let upEvs = visible.filter(e => e._start > ref && e._start <= ahead);
   upEvs.sort((a, b) => {
+    if (sortByDist) {
+      const da = distTo(a), db = distTo(b);
+      if (da != null && db != null && da !== db) return da - db;
+    }
     const dt = a._start - b._start;
     if (dt !== 0) return dt;
     const ta = a.tier || 99, tb = b.tier || 99;
     if (ta !== tb) return ta - tb;
-    const da = distTo(a), db = distTo(b);
-    if (da != null && db != null) return da - db;
+    const da2 = distTo(a), db2 = distTo(b);
+    if (da2 != null && db2 != null) return da2 - db2;
     return 0;
   });
 
@@ -801,14 +811,23 @@ aheadSlider.addEventListener("input", () => {
   render();
 });
 
-// Distance slider
+// Distance slider (right = Any, left = tighter filter)
 const distSlider = document.getElementById("distSlider");
 const distValue = document.getElementById("distValue");
 distSlider.addEventListener("input", () => {
-  maxDistYards = parseInt(distSlider.value);
+  const v = parseInt(distSlider.value);
+  maxDistYards = v >= 2000 ? 0 : v;  // 2000 = Any (no filter)
   distValue.textContent = maxDistYards === 0 ? "Any" :
     maxDistYards < 1760 ? maxDistYards + " yd" :
     (maxDistYards / 1760).toFixed(1) + " mi";
+  render();
+});
+
+// Sort by distance toggle
+const sortDistBtn = document.getElementById("sortDistBtn");
+sortDistBtn.addEventListener("click", () => {
+  sortByDist = !sortByDist;
+  sortDistBtn.classList.toggle("active", sortByDist);
   render();
 });
 
@@ -870,8 +889,8 @@ buildVenueGrid();
 // Font size cycling: normal -> large -> larger -> normal
 const FONT_SIZES = [
   { label: "A",  size: "16px" },
-  { label: "A+", size: "20px" },
-  { label: "A++", size: "24px" },
+  { label: "A+", size: "22px" },
+  { label: "A++", size: "28px" },
 ];
 let fontSizeIdx = 0;
 try {
@@ -929,8 +948,6 @@ setInterval(() => {
 initGeo();
 render();
 </script>
-<div style="text-align:center;padding:1rem;font-size:0.65rem;color:var(--text-dim)">
-  <img src="https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fmikegilchrist.github.io%2Fbigears-now&count_bg=%23e94560&title_bg=%230f3460&icon=&title=visits&edge_flat=true" alt="hit counter">
-</div>
+<div style="text-align:center;padding:1rem;font-size:0.65rem;color:var(--text-dim)"><img src="https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fmikegilchrist.github.io%2Fbigears-now&count_bg=%23e94560&title_bg=%230f3460&icon=&title=visits&edge_flat=true" alt="hit counter"></div>
 </body>
 </html>
