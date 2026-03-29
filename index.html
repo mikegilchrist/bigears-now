@@ -273,7 +273,7 @@ body {
   overflow: hidden;
 }
 .card.expanded .desc-line {
-  -webkit-line-clamp: unset;
+  display: none;
 }
 .card .categories {
   display: flex;
@@ -724,17 +724,30 @@ function render() {
   if (minFilter) {
     nowEvs = nowEvs.filter(e => (e._end - ref) / 60000 >= 30);
   }
-  // Sort now playing
+  // Distance tier: buckets by walking distance (yards)
+  // 0=<200yd, 1=<500yd, 2=<1000yd, 3=<2000yd, 4=farther/unknown
+  function distTier(ev) {
+    const d = distTo(ev);
+    if (d == null) return 4;
+    const yd = d * 1.09361;
+    if (yd < 200) return 0;
+    if (yd < 500) return 1;
+    if (yd < 1000) return 2;
+    if (yd < 2000) return 3;
+    return 4;
+  }
+
+  // Sort now playing: distance tier, then time left
   nowEvs.sort((a, b) => {
     if (sortByDist) {
-      const da = distTo(a), db = distTo(b);
-      if (da != null && db != null && da !== db) return da - db;
+      const dta = distTier(a), dtb = distTier(b);
+      if (dta !== dtb) return dta - dtb;
     }
+    // Time left (less time = higher urgency = sort first)
+    const remA = a._end - ref, remB = b._end - ref;
+    if (remA !== remB) return remA - remB;
     const ta = a.tier || 99, tb = b.tier || 99;
-    if (ta !== tb) return ta - tb;
-    const da = distTo(a), db = distTo(b);
-    if (da != null && db != null) return da - db;
-    return 0;
+    return ta - tb;
   });
 
   document.getElementById("nowCount").textContent = nowEvs.length;
@@ -744,18 +757,16 @@ function render() {
 
   // Coming up
   let upEvs = visible.filter(e => e._start > ref && e._start <= ahead);
+  // Sort coming up: distance tier, then start time
   upEvs.sort((a, b) => {
     if (sortByDist) {
-      const da = distTo(a), db = distTo(b);
-      if (da != null && db != null && da !== db) return da - db;
+      const dta = distTier(a), dtb = distTier(b);
+      if (dta !== dtb) return dta - dtb;
     }
     const dt = a._start - b._start;
     if (dt !== 0) return dt;
     const ta = a.tier || 99, tb = b.tier || 99;
-    if (ta !== tb) return ta - tb;
-    const da2 = distTo(a), db2 = distTo(b);
-    if (da2 != null && db2 != null) return da2 - db2;
-    return 0;
+    return ta - tb;
   });
 
   document.getElementById("upCount").textContent = upEvs.length;
