@@ -417,6 +417,7 @@ body {
 
 <div class="filter-bar">
   <button class="filter-btn active" id="minFilter" data-active="false">30+ min left</button>
+  <button class="filter-btn" id="musicOnlyBtn">Music only</button>
   <button class="filter-btn" id="sortDistBtn">Sort: distance</button>
   <button class="venue-toggle" id="venueToggle">Venues</button>
   <button class="venue-toggle" id="fontSizeBtn" style="margin-left:auto">A</button>
@@ -530,6 +531,8 @@ let aheadMin = 60;
 let minFilter = false;
 let maxDistYards = 0;   // 0 = off (show all)
 let sortByDist = false;
+let musicOnly = false;
+const NON_MUSIC_CATS = ["conversations", "film"];
 let venueVisible = {};  // venue -> bool
 let venueOpen = false;
 let expandedIds = new Set();  // track which cards are expanded across renders
@@ -712,6 +715,11 @@ function render() {
   const visible = EVENTS.filter(e => {
     if (!e._start || !e._end) return false;
     if (venueVisible[e.venue] === false) return false;
+    if (musicOnly && e.categories) {
+      const cats = e.categories.map(c => c.toLowerCase());
+      if (cats.some(c => NON_MUSIC_CATS.includes(c)) &&
+          !cats.includes("festival performance")) return false;
+    }
     if (maxDistYards > 0) {
       const d = distTo(e);
       if (d != null && d * 1.09361 > maxDistYards) return false;
@@ -831,6 +839,14 @@ distSlider.addEventListener("input", () => {
   distValue.textContent = maxDistYards === 0 ? "Any" :
     maxDistYards < 1760 ? maxDistYards + " yd" :
     (maxDistYards / 1760).toFixed(1) + " mi";
+  render();
+});
+
+// Music only filter
+const musicOnlyBtn = document.getElementById("musicOnlyBtn");
+musicOnlyBtn.addEventListener("click", () => {
+  musicOnly = !musicOnly;
+  musicOnlyBtn.classList.toggle("active", musicOnly);
   render();
 });
 
