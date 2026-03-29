@@ -91,6 +91,40 @@ body {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+.search-bar {
+  padding: 0.4rem 1rem;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--card-border);
+}
+.search-bar input {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.85rem;
+  outline: none;
+}
+.search-bar input:focus {
+  border-color: var(--accent);
+}
+.card .fav-star {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  font-size: 1.1rem;
+  cursor: pointer;
+  color: var(--card-border);
+  z-index: 1;
+  line-height: 1;
+}
+.card .fav-star.favorited {
+  color: var(--t1);
+}
+.card.is-fav {
+  background: #2a2a1a;
+}
 .filter-bar {
   display: flex;
   gap: 0.4rem;
@@ -415,12 +449,17 @@ body {
   </div>
 </div>
 
+<div class="search-bar">
+  <input type="text" id="searchInput" placeholder="Search artist or venue..." autocomplete="off">
+</div>
+
 <div class="filter-bar">
   <button class="filter-btn active" id="minFilter" data-active="false">30+ min left</button>
   <button class="filter-btn" id="musicOnlyBtn">Music only</button>
+  <button class="filter-btn" id="favsOnlyBtn">Favorites</button>
   <button class="filter-btn" id="sortDistBtn">Sort: distance</button>
   <button class="venue-toggle" id="venueToggle">Venues</button>
-  <button class="venue-toggle" id="fontSizeBtn" style="margin-left:auto">A</button>
+  <button class="venue-toggle" id="fontSizeBtn" style="margin-left:auto">Size: 0</button>
 </div>
 
 <div class="venue-panel" id="venuePanel">
@@ -532,7 +571,21 @@ let minFilter = false;
 let maxDistYards = 0;   // 0 = off (show all)
 let sortByDist = false;
 let musicOnly = false;
+let favsOnly = false;
+let searchQuery = "";
 const NON_MUSIC_CATS = ["conversations", "film"];
+let favorites = new Set();
+
+// Restore favorites from localStorage
+try {
+  const saved = JSON.parse(localStorage.getItem("be_now_favs") || "[]");
+  if (Array.isArray(saved)) favorites = new Set(saved);
+} catch (e) {}
+
+function saveFavs() {
+  try { localStorage.setItem("be_now_favs", JSON.stringify([...favorites])); }
+  catch (e) {}
+}
 let venueVisible = {};  // venue -> bool
 let venueOpen = false;
 let expandedIds = new Set();  // track which cards are expanded across renders
@@ -681,9 +734,13 @@ function makeCard(ev, ref, mode) {
     ? '<span class="expand-arrow">&#9660;</span>' : "";
 
   const isExpanded = expandedIds.has(ev.id);
-  return '<div class="card ' + tierClass + (isExpanded ? " expanded" : "") + '"' +
+  const isFav = favorites.has(ev.id);
+  const favClass = isFav ? " is-fav" : "";
+  const starClass = isFav ? "fav-star favorited" : "fav-star";
+  return '<div class="card ' + tierClass + favClass + (isExpanded ? " expanded" : "") + '"' +
     ' data-id="' + ev.id + '"' +
-    ((hasDetail || ev.description) ? ' data-expandable="1"' : "") + ">" +
+    ((hasDetail || ev.summary) ? ' data-expandable="1"' : "") + ">" +
+    '<span class="' + starClass + '" data-fav="' + ev.id + '">&#9733;</span>' +
     '<div class="card-header">' +
     '<div class="card-left">' +
     '<div class="artist">' + ev.title + arrowHtml + "</div>" +
@@ -719,6 +776,12 @@ function render() {
       const cats = e.categories.map(c => c.toLowerCase());
       if (cats.some(c => NON_MUSIC_CATS.includes(c)) &&
           !cats.includes("festival performance")) return false;
+    }
+    if (favsOnly && !favorites.has(e.id)) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const haystack = (e.title + " " + e.venue + " " + (e.genre || "")).toLowerCase();
+      if (!haystack.includes(q)) return false;
     }
     if (maxDistYards > 0) {
       const d = distTo(e);
@@ -850,6 +913,21 @@ musicOnlyBtn.addEventListener("click", () => {
   render();
 });
 
+// Favorites only filter
+const favsOnlyBtn = document.getElementById("favsOnlyBtn");
+favsOnlyBtn.addEventListener("click", () => {
+  favsOnly = !favsOnly;
+  favsOnlyBtn.classList.toggle("active", favsOnly);
+  render();
+});
+
+// Search
+const searchInput = document.getElementById("searchInput");
+searchInput.addEventListener("input", () => {
+  searchQuery = searchInput.value.trim();
+  render();
+});
+
 // Sort by distance toggle
 const sortDistBtn = document.getElementById("sortDistBtn");
 sortDistBtn.addEventListener("click", () => {
@@ -941,6 +1019,18 @@ document.getElementById("fontSizeBtn").addEventListener("click", () => {
 
 // Card expand/collapse via event delegation on both list containers
 function handleCardClick(e) {
+  // Handle star tap (favorite toggle)
+  if (e.target.dataset.fav) {
+    var fid = e.target.dataset.fav;
+    if (favorites.has(fid)) {
+      favorites.delete(fid);
+    } else {
+      favorites.add(fid);
+    }
+    saveFavs();
+    render();
+    return;
+  }
   // Walk up from the click target to find a .card element
   var el = e.target;
   while (el && el !== document.body) {
